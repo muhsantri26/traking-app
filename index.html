@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Pelacak Lokasi Online</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body class="bg-gradient-to-br from-indigo-500 to-purple-600 min-h-screen p-5">
+  <div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <div class="bg-white rounded-lg shadow-xl p-6 mb-6">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">📍 Pelacak Lokasi Online</h1>
+      <p class="text-gray-600">Bagikan link ke perangkat lain untuk melacak lokasi mereka secara real-time</p>
+    </div>
+
+    <!-- Main Content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Left: Tracker Controls -->
+      <div class="lg:col-span-2 space-y-4">
+        <!-- Map -->
+        <div class="bg-white rounded-lg shadow-xl overflow-hidden">
+          <div id="map" class="w-full h-96"></div>
+        </div>
+
+        <!-- Devices List -->
+        <div class="bg-white rounded-lg shadow-xl p-6">
+          <h2 class="text-xl font-bold text-indigo-600 mb-4">📱 Perangkat Terpantau</h2>
+          <ul id="devicesList" class="space-y-3">
+            <li class="text-gray-500 text-center py-4">Belum ada perangkat yang terhubung</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Right: Sidebar -->
+      <div class="space-y-4">
+        <!-- Share Link -->
+        <div class="bg-white rounded-lg shadow-xl p-6">
+          <h2 class="text-lg font-bold text-indigo-600 mb-3">🔗 Bagikan Link</h2>
+          <div class="space-y-2">
+            <input type="text" id="shareUrl" readonly class="w-full p-2 border rounded text-sm bg-gray-50" />
+            <button id="copyBtn" class="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700">
+              Salin Link
+            </button>
+            <p class="text-xs text-gray-600 mt-2">Bagikan link ini ke perangkat yang ingin Anda lacak</p>
+          </div>
+        </div>
+
+        <!-- Device Info -->
+        <div class="bg-white rounded-lg shadow-xl p-6">
+          <h2 class="text-lg font-bold text-indigo-600 mb-3">📡 Info Perangkat Ini</h2>
+          <div class="space-y-2 text-sm">
+            <p><strong>Session ID:</strong> <span id="sessionId" class="text-purple-600 font-mono text-xs">-</span></p>
+            <p><strong>Status:</strong> <span id="ownStatus" class="text-green-600 font-semibold">Siap</span></p>
+            <p><strong>Lokasi:</strong> <span id="ownLocation" class="text-gray-600">-</span></p>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="bg-white rounded-lg shadow-xl p-6">
+          <h2 class="text-lg font-bold text-indigo-600 mb-3">⚙️ Kontrol</h2>
+          <div class="space-y-2">
+            <input type="text" id="deviceName" placeholder="Nama perangkat Anda" class="w-full p-2 border rounded text-sm" value="Perangkat Saya" />
+            <button id="startBtn" class="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700">
+              ▶ Mulai Kirim Lokasi
+            </button>
+            <button id="stopBtn" disabled class="w-full px-4 py-2 bg-red-600 text-white rounded font-semibold disabled:opacity-50">
+              ⏹ Hentikan Pengiriman
+            </button>
+          </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-indigo-50 rounded-lg p-4 text-sm text-gray-700">
+          <h3 class="font-semibold mb-2">📋 Cara Menggunakan:</h3>
+          <ol class="list-decimal list-inside space-y-1 text-xs">
+            <li>Masukkan nama perangkat Anda</li>
+            <li>Klik "Mulai Kirim Lokasi"</li>
+            <li>Izinkan akses lokasi</li>
+            <li>Bagikan link ke perangkat lain</li>
+            <li>Buka link tersebut di perangkat target</li>
+            <li>Lokasi akan muncul di peta</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ===== CONFIG SUPABASE =====
+    // Daftar di https://supabase.com dan buat project
+    // Buat table 'locations' dengan kolom: id (text PK), session_id (text), device_name (text), lat (float), lng (float), accuracy (float), updated_at (timestamp)
+    
+    const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+    const SUPABASE_KEY = 'YOUR_ANON_KEY';
+    
+    // Atau gunakan API REST sederhana (Firebase, atau backend sendiri)
+    // Untuk demo, kita gunakan localStorage + Supabase Realtime
+    
+    // ===== APLIKASI =====
+    const sessionId = 'sess_' + Math.random().toString(36).slice(2, 11);
+    const urlParams = new URLSearchParams(window.location.search);
+    const trackingSessionId = urlParams.get('track');
+    
+    document.getElementById('sessionId').textContent = sessionId;
+    
+    // Set share URL
+    const currentUrl = window.location.origin + window.location.pathname;
+    const shareUrl = currentUrl + '?track=' + sessionId;
+    document.getElementById('shareUrl').value = shareUrl;
+    
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      document.getElementById('shareUrl').select();
+      document.execCommand('copy');
+      alert('Link berhasil disalin!');
+    });
+
+    // MAP INIT
+    let map;
+    function initMap() {
+      map = L.map('map').setView([-6.2, 106.8], 12);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+      }).addTo(map);
+    }
+    initMap();
+
+    // STATE
+    let watchId = null;
+    const markers = {};
+    const devices = {};
+
+    // JIKA INI HALAMAN TRACKER (penerima link)
+    if (trackingSessionId) {
+      document.getElementById('deviceName').disabled = true;
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = true;
+      document.getElementById('stopBtn').textContent = '⏸ Sedang Melacak ' + trackingSessionId.slice(0, 6);
+      
+      listenToDeviceLocation(trackingSessionId);
+      
+      // Auto update peta
+      setInterval(() => {
+        loadTrackedDevice(trackingSessionId);
+      }, 2000);
+    } else {
+      // INI PERANGKAT YANG AKAN DILACAK
+      
+      document.getElementById('startBtn').addEventListener('click', startTracking);
+      document.getElementById('stopBtn').addEventListener('click', stopTracking);
+      
+      // Auto-load perangkat yang aktif
+      setInterval(loadAllDevices, 3000);
+    }
+
+    function startTracking() {
+      const name = document.getElementById('deviceName').value || 'Perangkat Tanpa Nama';
+      
+      if (!navigator.geolocation) {
+        alert('Browser Anda tidak mendukung Geolocation');
+        return;
+      }
+
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      document.getElementById('ownStatus').textContent = 'MELACAK ✓';
+      document.getElementById('ownStatus').classList = 'text-green-600 font-semibold';
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const accuracy = pos.coords.accuracy;
+
+          // Simpan ke localStorage (atau kirim ke server)
+          const locationData = {
+            sessionId,
+            name,
+            lat,
+            lng,
+            accuracy,
+            timestamp: new Date().toISOString()
+          };
+          localStorage.setItem('tracker_' + sessionId, JSON.stringify(locationData));
+
+          // Update info
+          document.getElementById('ownLocation').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+          
+          // Update marker di map sendiri
+          if (!markers[sessionId]) {
+            markers[sessionId] = L.marker([lat, lng]).addTo(map);
+          } else {
+            markers[sessionId].setLatLng([lat, lng]);
+          }
+          
+          console.log('📍 Lokasi terkirim:', lat, lng);
+        },
+        (err) => {
+          alert('Error: ' + err.message);
+          stopTracking();
+        },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+      );
+    }
+
+    function stopTracking() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+      document.getElementById('ownStatus').textContent = 'BERHENTI ✕';
+      document.getElementById('ownStatus').classList = 'text-red-600 font-semibold';
+      localStorage.removeItem('tracker_' + sessionId);
+    }
+
+    function loadAllDevices() {
+      if (trackingSessionId) return; // skip jika di mode tracker
+      
+      const list = document.getElementById('devicesList');
+      const allKeys = Object.keys(localStorage).filter(k => k.startsWith('tracker_'));
+      
+      if (allKeys.length === 0) {
+        list.innerHTML = '<li class="text-gray-500 text-center py-4">Belum ada perangkat yang melacak</li>';
+        return;
+      }
+
+      list.innerHTML = '';
+      allKeys.forEach(key => {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          const timeDiff = Math.round((Date.now() - new Date(data.timestamp)) / 1000);
+          
+          const li = document.createElement('li');
+          li.className = 'bg-gray-50 p-3 rounded border-l-4 border-indigo-600';
+          li.innerHTML = `
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="font-bold text-indigo-600">${data.name}</div>
+                <div class="text-xs text-gray-600">Lat: ${data.lat.toFixed(6)} | Lng: ${data.lng.toFixed(6)}</div>
+                <div class="text-xs text-gray-500">Akurasi: ±${data.accuracy.toFixed(0)}m • ${timeDiff}s lalu</div>
+              </div>
+              <div class="flex gap-1">
+                <button class="px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700" onclick="focusDevice('${data.sessionId}', ${data.lat}, ${data.lng})">
+                  Fokus
+                </button>
+                <button class="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600" onclick="removeDevice('${key}')">
+                  Hapus
+                </button>
+              </div>
+            </div>
+          `;
+          list.appendChild(li);
+
+          // Update marker
+          if (!markers[data.sessionId]) {
+            const marker = L.marker([data.lat, data.lng], {
+              title: data.name
+            }).addTo(map).bindPopup(`<b>${data.name}</b><br>Lat: ${data.lat.toFixed(6)}<br>Lng: ${data.lng.toFixed(6)}`);
+            markers[data.sessionId] = marker;
+          } else {
+            markers[data.sessionId].setLatLng([data.lat, data.lng]);
+          }
+        } catch (e) {
+          console.error('Error parsing location:', e);
+        }
+      });
+    }
+
+    function focusDevice(sid, lat, lng) {
+      map.setView([lat, lng], 16);
+    }
+
+    function removeDevice(key) {
+      const data = JSON.parse(localStorage.getItem(key));
+      if (markers[data.sessionId]) {
+        map.removeLayer(markers[data.sessionId]);
+        delete markers[data.sessionId];
+      }
+      localStorage.removeItem(key);
+      loadAllDevices();
+    }
+
+    function loadTrackedDevice(sid) {
+      const data = JSON.parse(localStorage.getItem('tracker_' + sid)) || {};
+      if (data.lat) {
+        if (!markers[sid]) {
+          markers[sid] = L.marker([data.lat, data.lng]).addTo(map)
+            .bindPopup(`<b>${data.name}</b>`);
+        } else {
+          markers[sid].setLatLng([data.lat, data.lng]);
+        }
+        map.setView([data.lat, data.lng], 15);
+        document.getElementById('devicesList').innerHTML = `
+          <li class="bg-green-50 p-3 rounded border-l-4 border-green-600">
+            <div class="font-bold text-green-700">${data.name}</div>
+            <div class="text-sm text-gray-600">Lat: ${data.lat.toFixed(6)}</div>
+            <div class="text-sm text-gray-600">Lng: ${data.lng.toFixed(6)}</div>
+            <div class="text-xs text-gray-500 mt-1">Akurasi: ±${data.accuracy.toFixed(0)}m</div>
+          </li>
+        `;
+      }
+    }
+
+    function listenToDeviceLocation(sid) {
+      // Sudah ada di setInterval
+    }
+
+    // Cleanup
+    window.addEventListener('beforeunload', () => {
+      stopTracking();
+    });
+  </script>
+</body>
+</html>
