@@ -3,84 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Pelacak Lokasi Online</title>
+  <title>Pelacak Perangkat — Share Link</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
-<body class="bg-gradient-to-br from-indigo-500 to-purple-600 min-h-screen p-5">
+<body class="bg-gradient-to-br from-indigo-500 to-purple-600 min-h-screen p-6">
   <div class="max-w-5xl mx-auto">
-    <!-- Header -->
-    <div class="bg-white rounded-lg shadow-xl p-6 mb-6">
-      <h1 class="text-3xl font-bold text-gray-800 mb-2">📍 Pelacak Lokasi Online</h1>
-      <p class="text-gray-600">Bagikan link ke perangkat lain untuk melacak lokasi mereka secara real-time</p>
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+      <h1 class="text-2xl font-bold">Pelacak Perangkat — Bagikan Link</h1>
+      <p class="text-sm text-gray-600">Perangkat pembuat session (Tracker) membuat link dan membagikannya. Perangkat penerima membuka link lalu mengaktifkan "Share Location". Tracker tidak perlu mengaktifkan lokasi.</p>
     </div>
 
-    <!-- Main Content -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Left: Tracker Controls -->
+      <!-- Map & list -->
       <div class="lg:col-span-2 space-y-4">
-        <!-- Map -->
-        <div class="bg-white rounded-lg shadow-xl overflow-hidden">
-          <div id="map" class="w-full h-96"></div>
-        </div>
+        <div id="map" class="w-full h-96 rounded shadow-lg bg-gray-100"></div>
 
-        <!-- Devices List -->
-        <div class="bg-white rounded-lg shadow-xl p-6">
-          <h2 class="text-xl font-bold text-indigo-600 mb-4">📱 Perangkat Terpantau</h2>
-          <ul id="devicesList" class="space-y-3">
-            <li class="text-gray-500 text-center py-4">Belum ada perangkat yang terhubung</li>
+        <div class="bg-white rounded shadow p-4">
+          <h2 class="font-semibold text-lg">Perangkat Aktif</h2>
+          <ul id="devicesList" class="mt-3 space-y-2 text-sm text-gray-700">
+            <li class="text-gray-500">Belum ada lokasi diterima</li>
           </ul>
         </div>
       </div>
 
-      <!-- Right: Sidebar -->
+      <!-- Controls -->
       <div class="space-y-4">
-        <!-- Share Link -->
-        <div class="bg-white rounded-lg shadow-xl p-6">
-          <h2 class="text-lg font-bold text-indigo-600 mb-3">🔗 Bagikan Link</h2>
-          <div class="space-y-2">
-            <input type="text" id="shareUrl" readonly class="w-full p-2 border rounded text-sm bg-gray-50" />
-            <button id="copyBtn" class="w-full px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700">
-              Salin Link
-            </button>
-            <p class="text-xs text-gray-600 mt-2">Bagikan link ini ke perangkat yang ingin Anda lacak</p>
+        <div class="bg-white rounded shadow p-4">
+          <h2 class="font-semibold">Tracker (Buat & tunggu)</h2>
+          <div class="mt-2 space-y-2">
+            <input id="trackerName" class="w-full p-2 border rounded" placeholder="Nama Anda (opsional)" />
+            <button id="createSessionBtn" class="w-full py-2 bg-indigo-600 text-white rounded">Buat Session & Dapatkan Link</button>
+            <input id="shareLink" class="w-full p-2 border rounded bg-gray-50 mt-2" readonly />
+            <button id="startListenBtn" class="w-full py-2 bg-green-600 text-white rounded mt-2" disabled>Dengarkan Lokasi (Mulai)</button>
+            <button id="stopListenBtn" class="w-full py-2 bg-red-600 text-white rounded mt-2" disabled>Hentikan Mendengarkan</button>
           </div>
         </div>
 
-        <!-- Device Info -->
-        <div class="bg-white rounded-lg shadow-xl p-6">
-          <h2 class="text-lg font-bold text-indigo-600 mb-3">📡 Info Perangkat Ini</h2>
-          <div class="space-y-2 text-sm">
-            <p><strong>Session ID:</strong> <span id="sessionId" class="text-purple-600 font-mono text-xs">-</span></p>
-            <p><strong>Status:</strong> <span id="ownStatus" class="text-green-600 font-semibold">Siap</span></p>
-            <p><strong>Lokasi:</strong> <span id="ownLocation" class="text-gray-600">-</span></p>
+        <div class="bg-white rounded shadow p-4">
+          <h2 class="font-semibold">Target (Buka link yang dibagikan)</h2>
+          <div id="targetBox" class="mt-2 space-y-2">
+            <div id="targetInfo" class="text-sm text-gray-700">Tidak dalam mode share.</div>
+            <input id="targetName" class="w-full p-2 border rounded hidden" placeholder="Nama perangkat (opsional)" />
+            <div id="targetButtons" class="space-y-2 hidden">
+              <button id="startShareBtn" class="w-full py-2 bg-green-600 text-white rounded">Mulai Bagikan Lokasi</button>
+              <button id="stopShareBtn" disabled class="w-full py-2 bg-red-600 text-white rounded">Berhenti Bagikan</button>
+            </div>
           </div>
         </div>
 
-        <!-- Controls -->
-        <div class="bg-white rounded-lg shadow-xl p-6">
-          <h2 class="text-lg font-bold text-indigo-600 mb-3">⚙️ Kontrol</h2>
-          <div class="space-y-2">
-            <input type="text" id="deviceName" placeholder="Nama perangkat Anda" class="w-full p-2 border rounded text-sm" value="Perangkat Saya" />
-            <button id="startBtn" class="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700">
-              ▶ Mulai Kirim Lokasi
-            </button>
-            <button id="stopBtn" disabled class="w-full px-4 py-2 bg-red-600 text-white rounded font-semibold disabled:opacity-50">
-              ⏹ Hentikan Pengiriman
-            </button>
-          </div>
-        </div>
-
-        <!-- Instructions -->
-        <div class="bg-indigo-50 rounded-lg p-4 text-sm text-gray-700">
-          <h3 class="font-semibold mb-2">📋 Cara Menggunakan:</h3>
-          <ol class="list-decimal list-inside space-y-1 text-xs">
-            <li>Masukkan nama perangkat Anda</li>
-            <li>Klik "Mulai Kirim Lokasi"</li>
-            <li>Izinkan akses lokasi</li>
-            <li>Bagikan link ke perangkat lain</li>
-            <li>Buka link tersebut di perangkat target</li>
-            <li>Lokasi akan muncul di peta</li>
+        <div class="bg-white rounded shadow p-4 text-xs text-gray-600">
+          <strong>Catatan singkat:</strong>
+          <ol class="list-decimal list-inside mt-2">
+            <li>Tracker: Klik "Buat Session" lalu salin link dan bagikan ke target.</li>
+            <li>Target: Buka link → klik "Mulai Bagikan Lokasi" → izinkan akses lokasi.</li>
+            <li>Lokasi dikirim ke Firebase Realtime Database; tracker menerima pembaruan real-time.</li>
           </ol>
         </div>
       </div>
@@ -88,230 +65,227 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Firebase Realtime Database (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
   <script>
-    // ===== CONFIG SUPABASE =====
-    // Daftar di https://supabase.com dan buat project
-    // Buat table 'locations' dengan kolom: id (text PK), session_id (text), device_name (text), lat (float), lng (float), accuracy (float), updated_at (timestamp)
-    
-    const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-    const SUPABASE_KEY = 'YOUR_ANON_KEY';
-    
-    // Atau gunakan API REST sederhana (Firebase, atau backend sendiri)
-    // Untuk demo, kita gunakan localStorage + Supabase Realtime
-    
-    // ===== APLIKASI =====
-    const sessionId = 'sess_' + Math.random().toString(36).slice(2, 11);
-    const urlParams = new URLSearchParams(window.location.search);
-    const trackingSessionId = urlParams.get('track');
-    
-    document.getElementById('sessionId').textContent = sessionId;
-    
-    // Set share URL
-    const currentUrl = window.location.origin + window.location.pathname;
-    const shareUrl = currentUrl + '?track=' + sessionId;
-    document.getElementById('shareUrl').value = shareUrl;
-    
-    document.getElementById('copyBtn').addEventListener('click', () => {
-      document.getElementById('shareUrl').select();
-      document.execCommand('copy');
-      alert('Link berhasil disalin!');
+    // ====== KONFIGURASI ======
+    // Buat project Firebase dan Realtime Database. Ganti nilai di bawah dengan config project Anda.
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
+    };
+    // =================================
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // ====== Inisialisasi peta ======
+    const map = L.map('map').setView([-6.2,106.8], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const markers = {}; // sessionId -> marker
+
+    // ====== Util ======
+    const makeId = (n=8) => Math.random().toString(36).slice(2, 2+n);
+    const params = new URLSearchParams(window.location.search);
+    const shareParam = params.get('share'); // jika ada, ini adalah target yang diminta untuk share ke session
+
+    // ====== UI elemen ======
+    const createSessionBtn = document.getElementById('createSessionBtn');
+    const shareLinkInput = document.getElementById('shareLink');
+    const startListenBtn = document.getElementById('startListenBtn');
+    const stopListenBtn = document.getElementById('stopListenBtn');
+    const devicesList = document.getElementById('devicesList');
+    const trackerNameInput = document.getElementById('trackerName');
+
+    const targetBox = document.getElementById('targetBox');
+    const targetInfo = document.getElementById('targetInfo');
+    const targetNameInput = document.getElementById('targetName');
+    const targetButtons = document.getElementById('targetButtons');
+    const startShareBtn = document.getElementById('startShareBtn');
+    const stopShareBtn = document.getElementById('stopShareBtn');
+
+    // ====== State ======
+    let currentSession = null; // session id yang dibuat (di tracker)
+    let listenRef = null; // firebase listener ref untuk tracker
+    let watchId = null; // geolocation watch id (di target)
+
+    // ====== Tracker: buat session & dengarkan lokasi ======
+    createSessionBtn.addEventListener('click', () => {
+      const sid = 'sess_' + makeId(10);
+      currentSession = sid;
+      // simpan meta (opsional)
+      const meta = { createdAt: Date.now(), trackerName: trackerNameInput.value || 'Tracker' };
+      db.ref('sessions/' + sid + '/meta').set(meta);
+      const url = location.origin + location.pathname + '?share=' + sid;
+      shareLinkInput.value = url;
+      startListenBtn.disabled = false;
+      alert('Session dibuat. Bagikan link ke perangkat target.');
     });
 
-    // MAP INIT
-    let map;
-    function initMap() {
-      map = L.map('map').setView([-6.2, 106.8], 12);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
-      }).addTo(map);
-    }
-    initMap();
+    startListenBtn.addEventListener('click', () => {
+      if (!currentSession) { alert('Buat session dulu'); return; }
+      startListening(currentSession);
+      startListenBtn.disabled = true;
+      stopListenBtn.disabled = false;
+    });
 
-    // STATE
-    let watchId = null;
-    const markers = {};
-    const devices = {};
+    stopListenBtn.addEventListener('click', () => {
+      stopListening();
+      startListenBtn.disabled = false;
+      stopListenBtn.disabled = true;
+    });
 
-    // JIKA INI HALAMAN TRACKER (penerima link)
-    if (trackingSessionId) {
-      document.getElementById('deviceName').disabled = true;
-      document.getElementById('startBtn').disabled = true;
-      document.getElementById('stopBtn').disabled = true;
-      document.getElementById('stopBtn').textContent = '⏸ Sedang Melacak ' + trackingSessionId.slice(0, 6);
-      
-      listenToDeviceLocation(trackingSessionId);
-      
-      // Auto update peta
-      setInterval(() => {
-        loadTrackedDevice(trackingSessionId);
-      }, 2000);
-    } else {
-      // INI PERANGKAT YANG AKAN DILACAK
-      
-      document.getElementById('startBtn').addEventListener('click', startTracking);
-      document.getElementById('stopBtn').addEventListener('click', stopTracking);
-      
-      // Auto-load perangkat yang aktif
-      setInterval(loadAllDevices, 3000);
+    function startListening(sessionId) {
+      // listen pada path sessions/{sessionId}/location
+      if (listenRef) listenRef.off();
+      listenRef = db.ref('sessions/' + sessionId + '/location');
+      listenRef.on('value', snapshot => {
+        const val = snapshot.val();
+        renderDevices(val, sessionId);
+      });
+      // juga listen status (optional)
+      db.ref('sessions/' + sessionId + '/status').on('value', s => {
+        const st = s.val();
+        // bisa tampilkan status di UI (left as simple)
+      });
     }
 
-    function startTracking() {
-      const name = document.getElementById('deviceName').value || 'Perangkat Tanpa Nama';
-      
-      if (!navigator.geolocation) {
-        alert('Browser Anda tidak mendukung Geolocation');
+    function stopListening() {
+      if (listenRef) {
+        listenRef.off();
+        listenRef = null;
+      }
+      devicesList.innerHTML = '<li class="text-gray-500 text-center py-4">Mendengarkan dihentikan</li>';
+      // hapus marker untuk sesi ini
+      if (currentSession && markers[currentSession]) {
+        map.removeLayer(markers[currentSession]);
+        delete markers[currentSession];
+      }
+    }
+
+    function renderDevices(locObj, sessionId) {
+      // locObj adalah object { lat, lng, accuracy, ts, name } dari target
+      if (!locObj) {
+        devicesList.innerHTML = '<li class="text-gray-500 text-center py-4">Belum ada lokasi diterima</li>';
+        if (markers[sessionId]) { map.removeLayer(markers[sessionId]); delete markers[sessionId]; }
         return;
       }
+      const name = locObj.name || 'Target';
+      const lat = locObj.lat;
+      const lng = locObj.lng;
+      const acc = locObj.accuracy || 0;
+      const ts = locObj.ts ? new Date(locObj.ts) : null;
+      const age = ts ? Math.round((Date.now() - ts)/1000) : '-';
 
-      document.getElementById('startBtn').disabled = true;
-      document.getElementById('stopBtn').disabled = false;
-      document.getElementById('ownStatus').textContent = 'MELACAK ✓';
-      document.getElementById('ownStatus').classList = 'text-green-600 font-semibold';
+      devicesList.innerHTML = `
+        <li class="bg-gray-50 p-3 rounded border-l-4 border-indigo-600">
+          <div class="font-semibold text-indigo-700">${name}</div>
+          <div class="text-xs text-gray-600">Lat: ${lat.toFixed(6)} — Lng: ${lng.toFixed(6)}</div>
+          <div class="text-xs text-gray-500">Akurasi: ±${Math.round(acc)}m • ${age}s lalu</div>
+          <div class="mt-2">
+            <button class="px-2 py-1 bg-indigo-600 text-white text-xs rounded" onclick="focusOn(${lat}, ${lng})">Fokus</button>
+            <button class="px-2 py-1 bg-red-500 text-white text-xs rounded ml-2" onclick="clearSession('${sessionId}')">Hapus Session</button>
+          </div>
+        </li>
+      `;
 
-      watchId = navigator.geolocation.watchPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const accuracy = pos.coords.accuracy;
-
-          // Simpan ke localStorage (atau kirim ke server)
-          const locationData = {
-            sessionId,
-            name,
-            lat,
-            lng,
-            accuracy,
-            timestamp: new Date().toISOString()
-          };
-          localStorage.setItem('tracker_' + sessionId, JSON.stringify(locationData));
-
-          // Update info
-          document.getElementById('ownLocation').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-          
-          // Update marker di map sendiri
-          if (!markers[sessionId]) {
-            markers[sessionId] = L.marker([lat, lng]).addTo(map);
-          } else {
-            markers[sessionId].setLatLng([lat, lng]);
-          }
-          
-          console.log('📍 Lokasi terkirim:', lat, lng);
-        },
-        (err) => {
-          alert('Error: ' + err.message);
-          stopTracking();
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
-      );
+      // update marker
+      if (!markers[sessionId]) {
+        markers[sessionId] = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${name}</b><br>${ts ? ts.toLocaleString() : ''}`);
+      } else {
+        markers[sessionId].setLatLng([lat, lng]).setPopupContent(`<b>${name}</b><br>${ts ? ts.toLocaleString() : ''}`);
+      }
+      map.setView([lat, lng], 15);
     }
 
-    function stopTracking() {
+    // global helpers used by inline onclick
+    window.focusOn = (lat,lng) => { map.setView([lat,lng],16); };
+    window.clearSession = (sid) => {
+      if (!confirm('Hapus data sesi ini dari database?')) return;
+      db.ref('sessions/' + sid).remove();
+      if (markers[sid]) { map.removeLayer(markers[sid]); delete markers[sid]; }
+      devicesList.innerHTML = '<li class="text-gray-500 text-center py-4">Session dihapus</li>';
+    };
+
+    // ====== Target: jika membuka link ?share=SESSION_ID ======
+    if (shareParam) {
+      // tampilkan UI target
+      targetInfo.textContent = 'Anda diminta membagikan lokasi ke session: ' + shareParam;
+      targetNameInput.classList.remove('hidden');
+      targetButtons.classList.remove('hidden');
+      targetInfo.classList.add('text-sm');
+
+      startShareBtn.addEventListener('click', () => {
+        const name = (targetNameInput.value && targetNameInput.value.trim()) || ('Target_' + makeId(4));
+        startSharing(shareParam, name);
+      });
+
+      stopShareBtn.addEventListener('click', () => {
+        stopSharing(shareParam);
+      });
+    }
+
+    function startSharing(sessionId, deviceName) {
+      if (!navigator.geolocation) { alert('Geolocation tidak didukung'); return; }
+      startShareBtn.disabled = true;
+      stopShareBtn.disabled = false;
+      targetInfo.textContent = 'Mengirim lokasi ke session: ' + sessionId;
+
+      const locRef = db.ref('sessions/' + sessionId + '/location');
+      const statusRef = db.ref('sessions/' + sessionId + '/status');
+
+      // set online status and cleanup on disconnect
+      statusRef.set({ sharing: true, name: deviceName, ts: Date.now() });
+      statusRef.onDisconnect().set({ sharing: false, ts: Date.now() });
+
+      // start watchPosition
+      watchId = navigator.geolocation.watchPosition(pos => {
+        const payload = {
+          name: deviceName,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          ts: Date.now()
+        };
+        locRef.set(payload);
+      }, err => {
+        alert('Gagal membaca lokasi: ' + err.message);
+        stopSharing(sessionId);
+      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
+
+      // also write lastSeen meta for convenience
+      db.ref('sessions/' + sessionId + '/meta/target').set({ name: deviceName, startedAt: Date.now() });
+      db.ref('sessions/' + sessionId + '/meta/target').onDisconnect().remove();
+    }
+
+    function stopSharing(sessionId) {
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         watchId = null;
       }
-      document.getElementById('startBtn').disabled = false;
-      document.getElementById('stopBtn').disabled = true;
-      document.getElementById('ownStatus').textContent = 'BERHENTI ✕';
-      document.getElementById('ownStatus').classList = 'text-red-600 font-semibold';
-      localStorage.removeItem('tracker_' + sessionId);
+      // remove location & update status
+      db.ref('sessions/' + sessionId + '/location').remove().catch(()=>{});
+      db.ref('sessions/' + sessionId + '/status').set({ sharing: false, ts: Date.now() }).catch(()=>{});
+      startShareBtn.disabled = false;
+      stopShareBtn.disabled = true;
+      targetInfo.textContent = 'Pengiriman lokasi dihentikan';
     }
 
-    function loadAllDevices() {
-      if (trackingSessionId) return; // skip jika di mode tracker
-      
-      const list = document.getElementById('devicesList');
-      const allKeys = Object.keys(localStorage).filter(k => k.startsWith('tracker_'));
-      
-      if (allKeys.length === 0) {
-        list.innerHTML = '<li class="text-gray-500 text-center py-4">Belum ada perangkat yang melacak</li>';
-        return;
-      }
-
-      list.innerHTML = '';
-      allKeys.forEach(key => {
-        try {
-          const data = JSON.parse(localStorage.getItem(key));
-          const timeDiff = Math.round((Date.now() - new Date(data.timestamp)) / 1000);
-          
-          const li = document.createElement('li');
-          li.className = 'bg-gray-50 p-3 rounded border-l-4 border-indigo-600';
-          li.innerHTML = `
-            <div class="flex justify-between items-start">
-              <div>
-                <div class="font-bold text-indigo-600">${data.name}</div>
-                <div class="text-xs text-gray-600">Lat: ${data.lat.toFixed(6)} | Lng: ${data.lng.toFixed(6)}</div>
-                <div class="text-xs text-gray-500">Akurasi: ±${data.accuracy.toFixed(0)}m • ${timeDiff}s lalu</div>
-              </div>
-              <div class="flex gap-1">
-                <button class="px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700" onclick="focusDevice('${data.sessionId}', ${data.lat}, ${data.lng})">
-                  Fokus
-                </button>
-                <button class="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600" onclick="removeDevice('${key}')">
-                  Hapus
-                </button>
-              </div>
-            </div>
-          `;
-          list.appendChild(li);
-
-          // Update marker
-          if (!markers[data.sessionId]) {
-            const marker = L.marker([data.lat, data.lng], {
-              title: data.name
-            }).addTo(map).bindPopup(`<b>${data.name}</b><br>Lat: ${data.lat.toFixed(6)}<br>Lng: ${data.lng.toFixed(6)}`);
-            markers[data.sessionId] = marker;
-          } else {
-            markers[data.sessionId].setLatLng([data.lat, data.lng]);
-          }
-        } catch (e) {
-          console.error('Error parsing location:', e);
-        }
-      });
-    }
-
-    function focusDevice(sid, lat, lng) {
-      map.setView([lat, lng], 16);
-    }
-
-    function removeDevice(key) {
-      const data = JSON.parse(localStorage.getItem(key));
-      if (markers[data.sessionId]) {
-        map.removeLayer(markers[data.sessionId]);
-        delete markers[data.sessionId];
-      }
-      localStorage.removeItem(key);
-      loadAllDevices();
-    }
-
-    function loadTrackedDevice(sid) {
-      const data = JSON.parse(localStorage.getItem('tracker_' + sid)) || {};
-      if (data.lat) {
-        if (!markers[sid]) {
-          markers[sid] = L.marker([data.lat, data.lng]).addTo(map)
-            .bindPopup(`<b>${data.name}</b>`);
-        } else {
-          markers[sid].setLatLng([data.lat, data.lng]);
-        }
-        map.setView([data.lat, data.lng], 15);
-        document.getElementById('devicesList').innerHTML = `
-          <li class="bg-green-50 p-3 rounded border-l-4 border-green-600">
-            <div class="font-bold text-green-700">${data.name}</div>
-            <div class="text-sm text-gray-600">Lat: ${data.lat.toFixed(6)}</div>
-            <div class="text-sm text-gray-600">Lng: ${data.lng.toFixed(6)}</div>
-            <div class="text-xs text-gray-500 mt-1">Akurasi: ±${data.accuracy.toFixed(0)}m</div>
-          </li>
-        `;
-      }
-    }
-
-    function listenToDeviceLocation(sid) {
-      // Sudah ada di setInterval
-    }
-
-    // Cleanup
+    // ====== Cleanup on unload ======
     window.addEventListener('beforeunload', () => {
-      stopTracking();
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+      // jika tracker had listener, detach
+      if (listenRef) listenRef.off();
     });
   </script>
 </body>
