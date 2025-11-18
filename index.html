@@ -10,14 +10,73 @@
 <body class="bg-gradient-to-br from-indigo-500 to-purple-600 min-h-screen p-6">
   <div class="max-w-5xl mx-auto">
     <div class="bg-white rounded-lg shadow p-6 mb-6">
-      <h1 class="text-2xl font-bold">Pelacak Perangkat — Bagikan Link</h1>
-      <p class="text-sm text-gray-600">Perangkat pembuat session (Tracker) membuat link dan membagikannya. Perangkat penerima membuka link lalu mengaktifkan "Share Location". Tracker tidak perlu mengaktifkan lokasi.</p>
+      <h1 class="text-2xl font-bold">📍 Pelacak Perangkat</h1>
+      <p class="text-sm text-gray-600">Tracker membuat link → Target buka link → izinkan lokasi → Tracker melihat posisi di peta.</p>
+      <div class="mt-3 flex gap-2">
+        <button id="setupBtn" class="px-4 py-2 bg-orange-600 text-white rounded">⚙️ Setup Supabase</button>
+        <button id="resetConfigBtn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded">Reset Config</button>
+      </div>
+    </div>
+
+    <!-- Setup modal -->
+    <div id="setupModal" class="hidden inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg w-full max-w-2xl p-6 overflow-auto">
+        <h2 class="text-xl font-bold mb-3">Setup Supabase</h2>
+        <p class="text-sm text-gray-700 mb-3">Masukkan Project URL dan anon public key (atau service_role jika ingin auto-create table — tidak disarankan di browser publik).</p>
+        <input id="supabaseUrl" class="w-full p-2 border rounded mb-2 font-mono text-xs" placeholder="https://xxxxx.supabase.co" />
+        <input id="supabaseKey" class="w-full p-2 border rounded mb-2 font-mono text-xs" placeholder="anon public key atau service_role key" />
+        <div class="flex gap-2">
+          <button id="saveSupabaseBtn" class="px-4 py-2 bg-green-600 text-white rounded">Simpan</button>
+          <button id="tryCreateTablesBtn" class="px-4 py-2 bg-blue-600 text-white rounded">Coba Buat Tabel Otomatis</button>
+          <button id="closeSetupBtn" class="px-4 py-2 bg-gray-600 text-white rounded ml-auto">Tutup</button>
+        </div>
+
+        <div class="mt-4 text-xs text-gray-700">
+          <strong>Catatan:</strong>
+          <ol class="list-decimal list-inside mt-2">
+            <li>Jika Anda tidak bisa membuat tabel dari aplikasi, klik "Copy SQL" pada panduan pembuatan tabel yang muncul saat error.</li>
+            <li>Buka Supabase → SQL editor → paste SQL → Run.</li>
+            <li>Setelah tabel dibuat, refresh halaman dan coba lagi.</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- SQL modal -->
+    <div id="sqlModal" class="hidden inset-0 bg-black bg-opacity-60 z-60 flex items-center justify-center p-4">
+      <div class="bg-white rounded-lg w-full max-w-3xl p-6 overflow-auto">
+        <h2 class="text-xl font-bold mb-3">Buat Tabel di Supabase</h2>
+        <p class="text-sm text-gray-700 mb-3">Salin SQL di bawah dan jalankan di Supabase → SQL editor.</p>
+        <pre id="sqlContent" class="bg-gray-100 p-3 rounded text-xs overflow-auto">
+// Buat tabel sessions dan locations
+CREATE TABLE public.sessions (
+  session_id text PRIMARY KEY,
+  tracker_name text,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE public.locations (
+  id bigserial PRIMARY KEY,
+  session_id text REFERENCES public.sessions(session_id) ON DELETE CASCADE,
+  device_name text,
+  latitude double precision,
+  longitude double precision,
+  accuracy double precision,
+  created_at timestamptz DEFAULT now()
+);
+        </pre>
+        <div class="flex gap-2 mt-3">
+          <button id="copySqlBtn" class="px-3 py-2 bg-blue-600 text-white rounded text-sm">📋 Salin SQL</button>
+          <a id="openSqlBtn" target="_blank" rel="noopener" class="px-3 py-2 bg-green-600 text-white rounded text-sm">🔗 Buka SQL Editor</a>
+          <button id="closeSqlBtn" class="px-3 py-2 bg-gray-600 text-white rounded text-sm ml-auto">Tutup</button>
+        </div>
+        <p class="text-xs text-gray-500 mt-3">Setelah membuat tabel, refresh halaman.</p>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Map & list -->
       <div class="lg:col-span-2 space-y-4">
-        <div id="map" class="w-full h-96 rounded shadow-lg bg-gray-100"></div>
+        <div id="map" class="w-full h-96 rounded shadow-lg bg-gray-200"></div>
 
         <div class="bg-white rounded shadow p-4">
           <h2 class="font-semibold text-lg">Perangkat Aktif</h2>
@@ -27,107 +86,198 @@
         </div>
       </div>
 
-      <!-- Controls -->
       <div class="space-y-4">
         <div class="bg-white rounded shadow p-4">
-          <h2 class="font-semibold">Tracker (Buat & tunggu)</h2>
-          <div class="mt-2 space-y-2">
-            <input id="trackerName" class="w-full p-2 border rounded" placeholder="Nama Anda (opsional)" />
-            <button id="createSessionBtn" class="w-full py-2 bg-indigo-600 text-white rounded">Buat Session & Dapatkan Link</button>
-            <input id="shareLink" class="w-full p-2 border rounded bg-gray-50 mt-2" readonly />
-            <button id="startListenBtn" class="w-full py-2 bg-green-600 text-white rounded mt-2" disabled>Dengarkan Lokasi (Mulai)</button>
-            <button id="stopListenBtn" class="w-full py-2 bg-red-600 text-white rounded mt-2" disabled>Hentikan Mendengarkan</button>
+          <h2 class="font-semibold">Tracker (Buat session)</h2>
+          <input id="trackerName" class="w-full p-2 border rounded mb-2" placeholder="Nama Anda (opsional)" />
+          <button id="createSessionBtn" class="w-full py-2 bg-indigo-600 text-white rounded mb-2">Buat Session & Dapatkan Link</button>
+          <input id="shareLink" class="w-full p-2 border rounded bg-gray-50 text-sm font-mono mb-2" readonly />
+          <div class="flex gap-2 mb-2">
+            <button id="copyLinkBtn" class="flex-1 py-2 bg-blue-600 text-white rounded">📋 Salin</button>
+            <button id="startListenBtn" class="flex-1 py-2 bg-green-600 text-white rounded" disabled>▶ Dengarkan</button>
           </div>
+          <button id="stopListenBtn" class="w-full py-2 bg-red-600 text-white rounded" disabled>⏹ Hentikan</button>
         </div>
 
         <div class="bg-white rounded shadow p-4">
-          <h2 class="font-semibold">Target (Buka link yang dibagikan)</h2>
-          <div id="targetBox" class="mt-2 space-y-2">
-            <div id="targetInfo" class="text-sm text-gray-700">Tidak dalam mode share.</div>
-            <input id="targetName" class="w-full p-2 border rounded hidden" placeholder="Nama perangkat (opsional)" />
-            <div id="targetButtons" class="space-y-2 hidden">
-              <button id="startShareBtn" class="w-full py-2 bg-green-600 text-white rounded">Mulai Bagikan Lokasi</button>
-              <button id="stopShareBtn" disabled class="w-full py-2 bg-red-600 text-white rounded">Berhenti Bagikan</button>
-            </div>
+          <h2 class="font-semibold">Target (Buka link)</h2>
+          <div id="targetInfo" class="text-sm text-gray-700 mb-2">Tidak dalam mode share</div>
+          <input id="targetName" class="w-full p-2 border rounded hidden mb-2" placeholder="Nama perangkat (opsional)" />
+          <div id="targetButtons" class="hidden space-y-2">
+            <button id="startShareBtn" class="w-full py-2 bg-green-600 text-white rounded">▶ Mulai Bagikan Lokasi</button>
+            <button id="stopShareBtn" class="w-full py-2 bg-red-600 text-white rounded" disabled>⏹ Hentikan</button>
           </div>
         </div>
 
-        <div class="bg-white rounded shadow p-4 text-xs text-gray-600">
-          <strong>Catatan singkat:</strong>
-          <ol class="list-decimal list-inside mt-2">
-            <li>Tracker: Klik "Buat Session" lalu salin link dan bagikan ke target.</li>
-            <li>Target: Buka link → klik "Mulai Bagikan Lokasi" → izinkan akses lokasi.</li>
-            <li>Lokasi dikirim ke Firebase Realtime Database; tracker menerima pembaruan real-time.</li>
-          </ol>
-        </div>
+        <div id="debugMsg" class="bg-yellow-50 border-l-4 border-yellow-600 rounded p-2 text-xs text-yellow-800"></div>
       </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- Firebase Realtime Database (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- remove direct supabase UMD script; use dynamic import fallback in initSupabase -->
 
   <script>
-    // ====== KONFIGURASI ======
-    // Buat project Firebase dan Realtime Database. Ganti nilai di bawah dengan config project Anda.
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_PROJECT.firebaseapp.com",
-      databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
-      projectId: "YOUR_PROJECT",
-      storageBucket: "YOUR_PROJECT.appspot.com",
-      messagingSenderId: "SENDER_ID",
-      appId: "APP_ID"
-    };
-    // =================================
+    // ===== utilities & initial state =====
+    const debugEl = id => document.getElementById(id);
+    const debugMsg = (t) => { const el = debugEl('debugMsg'); el.textContent = new Date().toLocaleTimeString() + ' - ' + t; console.log(t); };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    let supabaseUrl = localStorage.getItem('supabaseUrl') || '';
+    let supabaseKey = localStorage.getItem('supabaseKey') || '';
+    let supabase = null;
+    let createClientFn = null; // will hold createClient function from supabase module
 
-    // ====== Inisialisasi peta ======
-    const map = L.map('map').setView([-6.2,106.8], 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    const markers = {}; // sessionId -> marker
-
-    // ====== Util ======
-    const makeId = (n=8) => Math.random().toString(36).slice(2, 2+n);
     const params = new URLSearchParams(window.location.search);
-    const shareParam = params.get('share'); // jika ada, ini adalah target yang diminta untuk share ke session
+    const shareParam = params.get('share');
 
-    // ====== UI elemen ======
-    const createSessionBtn = document.getElementById('createSessionBtn');
-    const shareLinkInput = document.getElementById('shareLink');
-    const startListenBtn = document.getElementById('startListenBtn');
-    const stopListenBtn = document.getElementById('stopListenBtn');
-    const devicesList = document.getElementById('devicesList');
-    const trackerNameInput = document.getElementById('trackerName');
+    // UI refs
+    const setupBtn = debugEl('setupBtn');
+    const setupModal = debugEl('setupModal');
+    const saveSupabaseBtn = debugEl('saveSupabaseBtn');
+    const tryCreateTablesBtn = debugEl('tryCreateTablesBtn');
+    const closeSetupBtn = debugEl('closeSetupBtn');
+    const resetConfigBtn = debugEl('resetConfigBtn');
 
-    const targetBox = document.getElementById('targetBox');
-    const targetInfo = document.getElementById('targetInfo');
-    const targetNameInput = document.getElementById('targetName');
-    const targetButtons = document.getElementById('targetButtons');
-    const startShareBtn = document.getElementById('startShareBtn');
-    const stopShareBtn = document.getElementById('stopShareBtn');
+    const sqlModal = debugEl('sqlModal');
+    const copySqlBtn = debugEl('copySqlBtn');
+    const openSqlBtn = debugEl('openSqlBtn');
+    const closeSqlBtn = debugEl('closeSqlBtn');
 
-    // ====== State ======
-    let currentSession = null; // session id yang dibuat (di tracker)
-    let listenRef = null; // firebase listener ref untuk tracker
-    let watchId = null; // geolocation watch id (di target)
+    const createSessionBtn = debugEl('createSessionBtn');
+    const shareLinkInput = debugEl('shareLink');
+    const copyLinkBtn = debugEl('copyLinkBtn');
+    const startListenBtn = debugEl('startListenBtn');
+    const stopListenBtn = debugEl('stopListenBtn');
+    const devicesList = debugEl('devicesList');
+    const trackerNameInput = debugEl('trackerName');
 
-    // ====== Tracker: buat session & dengarkan lokasi ======
-    createSessionBtn.addEventListener('click', () => {
-      const sid = 'sess_' + makeId(10);
+    const targetInfo = debugEl('targetInfo');
+    const targetNameInput = debugEl('targetName');
+    const targetButtons = debugEl('targetButtons');
+    const startShareBtn = debugEl('startShareBtn');
+    const stopShareBtn = debugEl('stopShareBtn');
+
+    // map
+    const map = L.map('map').setView([-6.2, 106.8], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const markers = {};
+
+    // state
+    let currentSession = null;
+    let watchId = null;
+    let pollInterval = null;
+
+    // ===== setup UI handlers =====
+    setupBtn.addEventListener('click', () => {
+      debugEl('supabaseUrl').value = supabaseUrl;
+      debugEl('supabaseKey').value = supabaseKey;
+      setupModal.classList.remove('hidden');
+    });
+    closeSetupBtn.addEventListener('click', () => setupModal.classList.add('hidden'));
+    resetConfigBtn.addEventListener('click', () => {
+      if (!confirm('Reset konfigurasi Supabase?')) return;
+      localStorage.removeItem('supabaseUrl');
+      localStorage.removeItem('supabaseKey');
+      location.reload();
+    });
+
+    saveSupabaseBtn.addEventListener('click', () => {
+      const url = debugEl('supabaseUrl').value.trim();
+      const key = debugEl('supabaseKey').value.trim();
+      if (!url || !key) { alert('Isi URL & Key'); return; }
+      localStorage.setItem('supabaseUrl', url);
+      localStorage.setItem('supabaseKey', key);
+      debugMsg('Konfigurasi disimpan — refresh halaman');
+      location.reload();
+    });
+
+    // SQL modal handlers
+    copySqlBtn.onclick = () => {
+      const sql = debugEl('sqlContent').innerText;
+      navigator.clipboard.writeText(sql).then(()=> alert('SQL disalin'));
+    };
+    openSqlBtn.onclick = () => {
+      const link = supabaseUrl ? supabaseUrl + '/project/sql' : 'https://app.supabase.com';
+      openSqlBtn.href = link;
+    };
+    closeSqlBtn.onclick = () => sqlModal.classList.add('hidden');
+
+    tryCreateTablesBtn.addEventListener('click', async () => {
+      // show SQL modal so user can run SQL in Supabase UI
+      alert('Aplikasi akan menampilkan SQL untuk dibuat di Supabase. Jika punya service_role key, jalankan di server, bukan di browser.');
+      sqlModal.classList.remove('hidden');
+    });
+
+    // ===== init supabase client (dynamic, robust) =====
+    (async function initSupabase(){
+      if (!supabaseUrl || !supabaseKey) {
+        debugMsg('Belum ada konfigurasi Supabase');
+        return;
+      }
+
+      // prefer global UMD if present
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        createClientFn = window.supabase.createClient;
+      } else {
+        // try dynamic ESM import from jsdelivr (+esm)
+        try {
+          const mod = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm');
+          if (mod && typeof mod.createClient === 'function') {
+            createClientFn = mod.createClient;
+          }
+        } catch (e) {
+          debugMsg('Gagal load Supabase module via ESM: ' + e.message);
+        }
+      }
+
+      if (!createClientFn) {
+        debugMsg('Tidak dapat menemukan fungsi createClient Supabase. Pastikan koneksi internet dan coba refresh.');
+        return;
+      }
+
+      try {
+        supabase = createClientFn(supabaseUrl, supabaseKey);
+        debugMsg('Supabase siap');
+      } catch (err) {
+        debugMsg('Gagal init Supabase: ' + (err.message || err));
+      }
+    })();
+
+    // helper: detect missing table errors
+    function handleDbError(err) {
+      if (!err) return;
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('could not find the table') || (msg.includes('relation') && msg.includes('does not exist'))) {
+        debugMsg('Tabel belum dibuat — munculkan panduan SQL');
+        sqlModal.classList.remove('hidden');
+      } else {
+        debugMsg('DB error: ' + (err.message || err));
+      }
+    }
+
+    // ===== tracker flows =====
+    copyLinkBtn.addEventListener('click', () => {
+      shareLinkInput.select();
+      document.execCommand('copy');
+      alert('Link disalin');
+    });
+
+    createSessionBtn.addEventListener('click', async () => {
+      if (!supabase) { alert('Setup Supabase dulu'); setupModal.classList.remove('hidden'); return; }
+      const sid = 'sess_' + Math.random().toString(36).slice(2,12);
       currentSession = sid;
-      // simpan meta (opsional)
-      const meta = { createdAt: Date.now(), trackerName: trackerNameInput.value || 'Tracker' };
-      db.ref('sessions/' + sid + '/meta').set(meta);
-      const url = location.origin + location.pathname + '?share=' + sid;
-      shareLinkInput.value = url;
-      startListenBtn.disabled = false;
-      alert('Session dibuat. Bagikan link ke perangkat target.');
+      const trackerName = trackerNameInput.value.trim() || 'Tracker';
+      try {
+        const { error } = await supabase.from('sessions').insert({ session_id: sid, tracker_name: trackerName });
+        if (error) { handleDbError(error); throw error; }
+        const url = location.origin + location.pathname + '?share=' + sid;
+        shareLinkInput.value = url;
+        startListenBtn.disabled = false;
+        alert('Session dibuat. Bagikan link ke Target:\n\n' + url);
+        debugMsg('Session dibuat: ' + sid);
+      } catch (err) {
+        debugMsg('Gagal membuat session: ' + (err.message || err));
+      }
     });
 
     startListenBtn.addEventListener('click', () => {
@@ -136,157 +286,123 @@
       startListenBtn.disabled = true;
       stopListenBtn.disabled = false;
     });
-
     stopListenBtn.addEventListener('click', () => {
       stopListening();
       startListenBtn.disabled = false;
       stopListenBtn.disabled = true;
     });
 
-    function startListening(sessionId) {
-      // listen pada path sessions/{sessionId}/location
-      if (listenRef) listenRef.off();
-      listenRef = db.ref('sessions/' + sessionId + '/location');
-      listenRef.on('value', snapshot => {
-        const val = snapshot.val();
-        renderDevices(val, sessionId);
-      });
-      // juga listen status (optional)
-      db.ref('sessions/' + sessionId + '/status').on('value', s => {
-        const st = s.val();
-        // bisa tampilkan status di UI (left as simple)
-      });
+    async function startListening(sessionId) {
+      if (!supabase) { alert('Supabase belum terhubung'); return; }
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(async () => {
+        try {
+          const { data, error } = await supabase
+            .from('locations')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          if (error) { handleDbError(error); debugMsg('Polling error: ' + error.message); return; }
+          if (data && data.length) renderLocation(data[0]);
+          else devicesList.innerHTML = '<li class="text-gray-500">Menunggu lokasi dari target...</li>';
+        } catch (err) {
+          debugMsg('Polling exception: ' + (err.message || err));
+        }
+      }, 2000);
+      debugMsg('Mendengarkan session: ' + sessionId);
     }
 
     function stopListening() {
-      if (listenRef) {
-        listenRef.off();
-        listenRef = null;
-      }
-      devicesList.innerHTML = '<li class="text-gray-500 text-center py-4">Mendengarkan dihentikan</li>';
-      // hapus marker untuk sesi ini
-      if (currentSession && markers[currentSession]) {
-        map.removeLayer(markers[currentSession]);
-        delete markers[currentSession];
-      }
+      if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+      devicesList.innerHTML = '<li class="text-gray-500">Mendengarkan dihentikan</li>';
+      debugMsg('Mendengarkan dihentikan');
     }
 
-    function renderDevices(locObj, sessionId) {
-      // locObj adalah object { lat, lng, accuracy, ts, name } dari target
-      if (!locObj) {
-        devicesList.innerHTML = '<li class="text-gray-500 text-center py-4">Belum ada lokasi diterima</li>';
-        if (markers[sessionId]) { map.removeLayer(markers[sessionId]); delete markers[sessionId]; }
-        return;
-      }
-      const name = locObj.name || 'Target';
-      const lat = locObj.lat;
-      const lng = locObj.lng;
-      const acc = locObj.accuracy || 0;
-      const ts = locObj.ts ? new Date(locObj.ts) : null;
+    function renderLocation(row) {
+      const name = row.device_name || 'Target';
+      const lat = Number(row.latitude);
+      const lng = Number(row.longitude);
+      const acc = Math.round(row.accuracy || 0);
+      const ts = row.created_at ? new Date(row.created_at) : null;
       const age = ts ? Math.round((Date.now() - ts)/1000) : '-';
-
       devicesList.innerHTML = `
-        <li class="bg-gray-50 p-3 rounded border-l-4 border-indigo-600">
-          <div class="font-semibold text-indigo-700">${name}</div>
+        <li class="bg-white p-3 rounded border-l-4 border-green-600">
+          <div class="font-semibold text-green-700">${name}</div>
           <div class="text-xs text-gray-600">Lat: ${lat.toFixed(6)} — Lng: ${lng.toFixed(6)}</div>
-          <div class="text-xs text-gray-500">Akurasi: ±${Math.round(acc)}m • ${age}s lalu</div>
-          <div class="mt-2">
-            <button class="px-2 py-1 bg-indigo-600 text-white text-xs rounded" onclick="focusOn(${lat}, ${lng})">Fokus</button>
-            <button class="px-2 py-1 bg-red-500 text-white text-xs rounded ml-2" onclick="clearSession('${sessionId}')">Hapus Session</button>
-          </div>
-        </li>
-      `;
-
-      // update marker
-      if (!markers[sessionId]) {
-        markers[sessionId] = L.marker([lat, lng]).addTo(map).bindPopup(`<b>${name}</b><br>${ts ? ts.toLocaleString() : ''}`);
+          <div class="text-xs text-gray-500">Akurasi: ±${acc}m • ${age}s lalu</div>
+        </li>`;
+      if (!markers[currentSession]) {
+        markers[currentSession] = L.circleMarker([lat,lng], { radius:8, fillColor:'#10b981', color:'#059669', weight:2 }).addTo(map)
+          .bindPopup(`${name}<br>${ts ? ts.toLocaleString() : ''}`);
       } else {
-        markers[sessionId].setLatLng([lat, lng]).setPopupContent(`<b>${name}</b><br>${ts ? ts.toLocaleString() : ''}`);
+        markers[currentSession].setLatLng([lat,lng]).getPopup().setContent(`${name}<br>${ts ? ts.toLocaleString() : ''}`);
       }
-      map.setView([lat, lng], 15);
+      map.setView([lat,lng], 15);
     }
 
-    // global helpers used by inline onclick
-    window.focusOn = (lat,lng) => { map.setView([lat,lng],16); };
-    window.clearSession = (sid) => {
-      if (!confirm('Hapus data sesi ini dari database?')) return;
-      db.ref('sessions/' + sid).remove();
-      if (markers[sid]) { map.removeLayer(markers[sid]); delete markers[sid]; }
-      devicesList.innerHTML = '<li class="text-gray-500 text-center py-4">Session dihapus</li>';
-    };
-
-    // ====== Target: jika membuka link ?share=SESSION_ID ======
+    // ===== target flows =====
     if (shareParam) {
-      // tampilkan UI target
       targetInfo.textContent = 'Anda diminta membagikan lokasi ke session: ' + shareParam;
       targetNameInput.classList.remove('hidden');
       targetButtons.classList.remove('hidden');
-      targetInfo.classList.add('text-sm');
 
       startShareBtn.addEventListener('click', () => {
-        const name = (targetNameInput.value && targetNameInput.value.trim()) || ('Target_' + makeId(4));
+        if (!supabase) { alert('Setup Supabase dulu'); setupModal.classList.remove('hidden'); return; }
+        const name = (targetNameInput.value.trim() || 'Device_' + Math.random().toString(36).slice(2,6));
         startSharing(shareParam, name);
       });
-
-      stopShareBtn.addEventListener('click', () => {
-        stopSharing(shareParam);
-      });
+      stopShareBtn.addEventListener('click', () => stopSharing(shareParam));
     }
 
-    function startSharing(sessionId, deviceName) {
+    async function startSharing(sessionId, deviceName) {
       if (!navigator.geolocation) { alert('Geolocation tidak didukung'); return; }
       startShareBtn.disabled = true;
       stopShareBtn.disabled = false;
       targetInfo.textContent = 'Mengirim lokasi ke session: ' + sessionId;
-
-      const locRef = db.ref('sessions/' + sessionId + '/location');
-      const statusRef = db.ref('sessions/' + sessionId + '/status');
-
-      // set online status and cleanup on disconnect
-      statusRef.set({ sharing: true, name: deviceName, ts: Date.now() });
-      statusRef.onDisconnect().set({ sharing: false, ts: Date.now() });
-
-      // start watchPosition
-      watchId = navigator.geolocation.watchPosition(pos => {
-        const payload = {
-          name: deviceName,
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          ts: Date.now()
-        };
-        locRef.set(payload);
-      }, err => {
+      const sendLocation = async (pos) => {
+        try {
+          const payload = {
+            session_id: sessionId,
+            device_name: deviceName,
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          };
+          const { error } = await supabase.from('locations').insert(payload);
+          if (error) handleDbError(error);
+        } catch (err) {
+          handleDbError(err);
+        }
+      };
+      navigator.geolocation.getCurrentPosition(sendLocation, err => {
+        alert('Error membaca lokasi: ' + err.message);
+      }, { enableHighAccuracy:true, timeout:5000 });
+      watchId = navigator.geolocation.watchPosition(sendLocation, err => {
         alert('Gagal membaca lokasi: ' + err.message);
         stopSharing(sessionId);
-      }, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 });
-
-      // also write lastSeen meta for convenience
-      db.ref('sessions/' + sessionId + '/meta/target').set({ name: deviceName, startedAt: Date.now() });
-      db.ref('sessions/' + sessionId + '/meta/target').onDisconnect().remove();
+      }, { enableHighAccuracy:true, maximumAge:0, timeout:10000 });
+      debugMsg('Mulai berbagi lokasi: ' + deviceName);
     }
 
     function stopSharing(sessionId) {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-      }
-      // remove location & update status
-      db.ref('sessions/' + sessionId + '/location').remove().catch(()=>{});
-      db.ref('sessions/' + sessionId + '/status').set({ sharing: false, ts: Date.now() }).catch(()=>{});
+      if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
       startShareBtn.disabled = false;
       stopShareBtn.disabled = true;
-      targetInfo.textContent = 'Pengiriman lokasi dihentikan';
+      targetInfo.textContent = 'Pengiriman dihentikan';
+      debugMsg('Berhenti berbagi lokasi');
     }
 
-    // ====== Cleanup on unload ======
+    // cleanup
     window.addEventListener('beforeunload', () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-      }
-      // jika tracker had listener, detach
-      if (listenRef) listenRef.off();
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (pollInterval) clearInterval(pollInterval);
     });
+
+    // auto open setup if no config
+    if (!supabaseUrl || !supabaseKey) {
+      setTimeout(()=> setupModal.classList.remove('hidden'), 600);
+    }
   </script>
 </body>
 </html>
